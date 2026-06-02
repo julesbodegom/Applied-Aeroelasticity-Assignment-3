@@ -1,4 +1,5 @@
 import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
@@ -48,86 +49,145 @@ eig_flex = np.linalg.eigvals(Flexible_AC_Un_Aero['A_Fdyn'])
 
 
 # ---------------------------------------------------------------------------
-# Rigid-body (flight-dynamic) mode identification, by eigenvector
+# Rigid-body (flight-dynamic) mode identification, by participation factor
 # ---------------------------------------------------------------------------
+# Modes are identified from scale-invariant modal participation factors
+#   p_ki = (left eigvec)_ki * (right eigvec)_ki   (normalised so sum_k p_ki = 1),
+# computed via scipy.linalg.eig(left=True). Unlike the normalised right-
+# eigenvector magnitude used previously, participation factors are invariant
+# under diagonal state rescaling, so "which state dominates a mode" is not an
+# artefact of the incommensurate units (m, m/s, rad, rad/s, dimensionless lag)
+# in the 180-state vector. See CONTEXT.md "Rigid-body (flight-dynamic) modes"
+# and docs/adr/0001-mode-identification-by-participation-factors.md.
+#
 # Body-axis velocity/rate states in the 12-state rigid-body block (0-based):
 #   [Px Py Pz | u v w | phi theta psi | p q r]
-#   u=3  v=4  w=5  p=9  q=10  r=11   (the dynamic discriminants)
-# The classical aircraft modes are labelled from which of these dominate each
-# eigenvector. See CONTEXT.md "Rigid-body (flight-dynamic) modes".
+import scipy.linalg as sla
+
+U, VY, WZ, PHI, THE, PSI, P, Q, R = 3, 4, 5, 6, 7, 8, 9, 10, 11
+INTEG = [0, 1, 2, PSI]                         # kinematic integrators
+VELRATE = [U, VY, WZ, P, Q, R]                 # dynamic discriminants
+
+
+def participation_factors(A):
+    """Scale-invariant participation factors. Returns (eigvals, Pmag, cond),
+    where Pmag[k,i] = |p_ki| column-normalised (sum_k Pmag = 1 per mode) and
+    cond = |vl_i^H vr_i| (small => near-defective; participation unreliable for
+    that mode, e.g. the exactly-degenerate poles from the identical L/R wings)."""
+    w, vl, vr = sla.eig(A, left=True, right=True)
+    bi = np.sum(vl.conj() * vr, axis=0)        # biorthogonal normalisation
+    # The per-mode scalar bi cancels under the column normalisation below, so we
+    # never divide by it (it is ~1e-295 for the degenerate L/R-wing poles and
+    # would overflow). |bi| is retained only as the conditioning measure.
+    num = np.abs(vl.conj() * vr)
+    Pmag = num / (num.sum(axis=0, keepdims=True) + 1e-300)
+    return w, Pmag, np.abs(bi)
+
+
+def inverse_participation_ratio(p_over_modes):
+    """Effective number of modes a state's participation spreads over.
+    ~1 = concentrated on one pole; large = smeared across many."""
+    x = p_over_modes / (p_over_modes.sum() + 1e-30)
+    return 1.0 / np.sum(x ** 2)
+
 
 def identify_rigid_body_modes(A):
-    """Return {mode_name: eigenvalue} for the five classical modes of a
-    free-flying aircraft, identified from the dominant body velocity/rate state
-    in each eigenvector. The phugoid may be overdamped (two real roots); the
-    representative (least-damped) root is returned."""
-    w, V = np.linalg.eig(A)
-    Vn = np.abs(V) / (np.abs(V).sum(axis=0, keepdims=True) + 1e-30)
+    """Identify the five classical modes from participation factors. Returns
+    {name: (eigenvalue, info)}. Threshold-free: integrators are excluded by
+    their own participation signature, each classical mode is the argmax-
+    participation eigenvalue in its signature, split only by real vs complex.
+    The roll mode is the global max-p eigenvalue -- it need NOT be real once the
+    wing is flexible -- and carries its spread (IPR_p) and conditioning."""
+    w, Pm, cond = participation_factors(A)
+    cand = Pm[INTEG, :].sum(axis=0) <= 0.5     # not an integrator
+    osc = cand & (w.imag > 1e-9)               # upper half-plane only
+    real = cand & (np.abs(w.imag) < 1e-9)
 
-    u, v, wv, p, q, r = 3, 4, 5, 9, 10, 11
-    phi_a, psi_a = 6, 8                       # bank / heading angles (spiral)
-    vel_rate = [u, v, wv, p, q, r]
+    def pick(mask, score):
+        idx = np.where(mask)[0]
+        return idx[int(np.argmax(score[idx]))] if idx.size else None
 
-    # Participation of body velocity/rate states in each eigenvector.
-    rb_frac = Vn[vel_rate, :].sum(axis=0)
-    integ = np.abs(w) < 1e-6                  # kinematic integrators (~0)
+    def info(i):
+        return {'rb': Pm[VELRATE, i].sum(), 'struct': 1.0 - Pm[:12, i].sum(),
+                'cond': cond[i], 'defective': cond[i] < 1e-3,
+                'q': Pm[Q, i], 'p': Pm[P, i], 'w': Pm[WZ, i]}
 
     modes = {}
-
-    def best(mask, key):
-        idx = np.where(mask)[0]
-        if idx.size == 0:
-            return None
-        return idx[int(np.argmax([key(i) for i in idx]))]
-
-    osc = (np.abs(w.imag) > 1e-6) & (rb_frac > 0.05)
-
-    # Short-period: oscillatory, w/q dominated.
-    sp = best(osc & (Vn[wv, :] + Vn[q, :] > Vn[v, :] + Vn[r, :]),
-              key=lambda i: Vn[wv, i] + Vn[q, i])
+    sp = pick(osc, Pm[WZ, :] + Pm[Q, :])       # short-period: heave+pitch-rate
     if sp is not None:
-        modes['Short-period'] = w[sp]
-
-    # Dutch roll: oscillatory, v/r dominated.
-    dr = best(osc & (Vn[v, :] + Vn[r, :] >= Vn[wv, :] + Vn[q, :]),
-              key=lambda i: Vn[v, i] + Vn[r, i])
+        modes['Short-period'] = (w[sp], info(sp))
+    dr = pick(osc, Pm[VY, :] + Pm[R, :])       # Dutch roll: sideslip+yaw-rate
     if dr is not None:
-        modes['Dutch roll'] = w[dr]
-
-    # Roll subsidence: real, fast (large |Re|), p dominated.
-    roll = best((np.abs(w.imag) < 1e-6) & ~integ & (rb_frac > 0.02)
-                & (np.argmax(Vn[vel_rate, :], axis=0) == vel_rate.index(p)),
-                key=lambda i: -w[i].real)        # most negative real part
+        modes['Dutch roll'] = (w[dr], info(dr))
+    roll = pick(cand, Pm[P, :])                # roll: global max roll-rate
     if roll is not None:
-        modes['Roll subsidence'] = w[roll]
-
-    # Phugoid: low-frequency longitudinal, u dominated (real or complex).
-    # Pick the least-damped (largest real part) u-dominated, slow root that is
-    # not the roll mode.
-    u_dom = (np.argmax(Vn[vel_rate, :], axis=0) == vel_rate.index(u)) & ~integ
-    ph = best(u_dom & (rb_frac > 0.05) & (np.abs(w.real) < 5),
-              key=lambda i: w[i].real)
+        d = info(roll); d['ipr_p'] = inverse_participation_ratio(Pm[P, :])
+        modes['Roll subsidence'] = (w[roll], d)
+    ph = pick(real, Pm[U, :])                  # phugoid: real, axial-velocity
     if ph is not None:
-        modes['Phugoid'] = w[ph]
-
-    # Spiral: slow real mode near the origin, lateral (bank/heading) dominated,
-    # excluding the pure integrators. Here it is the mildly unstable root.
-    lateral_angle = (Vn[phi_a, :] + Vn[psi_a, :] > Vn[vel_rate, :].sum(axis=0))
-    sp_cand = (np.abs(w.imag) < 1e-6) & ~integ & lateral_angle & (np.abs(w.real) < 1)
-    spi = best(sp_cand, key=lambda i: w[i].real)   # most positive (unstable)
+        modes['Phugoid'] = (w[ph], info(ph))
+    spi = pick(real, Pm[PHI, :])               # spiral: real, bank-angle
     if spi is not None:
-        modes['Spiral'] = w[spi]
+        modes['Spiral'] = (w[spi], info(spi))
+    return modes, w, Pm
 
-    return modes
+
+def report_modes(name, modes):
+    print(f'\n{name}  (participation-factor identified):')
+    for nm, (lam, d) in modes.items():
+        zeta = -lam.real / abs(lam) if abs(lam) > 0 else float('nan')
+        extra = f", IPR_p={d['ipr_p']:.2f}" if 'ipr_p' in d else ''
+        extra += f", struct={d['struct']:.2f}" if d['struct'] > 0.1 else ''
+        flag = (f"  [ill-conditioned eigvec, cond={d['cond']:.1e}: eigenvalue "
+                f"robust, participation caveated]" if d['defective'] else '')
+        print(f"  {nm:16s} {lam.real:+8.4f}{lam.imag:+8.4f}j  "
+              f"(zeta={zeta:+.2f}, rb={d['rb']:.2f}, q={d['q']:.2f}, "
+              f"p={d['p']:.2f}{extra}){flag}")
 
 
-rb_modes = identify_rigid_body_modes(Rigid_AC_Quasi_Aero['A_Fdyn'])
-print('Rigid-aircraft rigid-body modes (eigenvector-identified):')
-for name, lam in rb_modes.items():
-    zeta = -lam.real / abs(lam) if abs(lam) > 0 else float('nan')
-    stab = 'UNSTABLE' if lam.real > 0 else 'stable'
-    print(f'  {name:16s} {lam.real:+8.4f} {lam.imag:+8.4f}j  '
-          f'(|lambda|={abs(lam):7.4f}, zeta={zeta:+.3f}, {stab})')
+# Independent verification baseline: the bare 12-state rigid-body system (tail
+# aero only, NO wing feedback). Its five modes are textbook-unambiguous; the
+# coupled labels are checked against it. Because it omits wing aero, wing-damped
+# modes (roll L_p, short-period Z_w) deliberately differ -- that gap measures the
+# wing's contribution. See CONTEXT.md "Isolated rigid-body block".
+A_iso = np.linalg.inv(Rigid_Dof['M_rr']) @ Rigid_Dof['A_rr']
+iso_modes, _, _ = identify_rigid_body_modes(A_iso)
+report_modes('Isolated 12-state baseline (tail only)', iso_modes)
+
+rb_modes, _, _ = identify_rigid_body_modes(Rigid_AC_Quasi_Aero['A_Fdyn'])
+report_modes('Rigid aircraft (40 states)', rb_modes)
+
+flex_modes, w_flex, Pm_flex = identify_rigid_body_modes(Flexible_AC_Un_Aero['A_Fdyn'])
+report_modes('Flexible aircraft (180 states)', flex_modes)
+
+# Where did the rigid pitch/roll content go in the flexible aircraft? List the
+# eigenvalues that still carry significant pitch-rate (q) and roll-rate (p).
+print('\nFlexible AC: modes retaining rigid q (pitch) > 0.10:')
+for i in np.where((Pm_flex[Q, :] > 0.10) & (w_flex.imag >= -1e-9))[0]:
+    print(f'   {w_flex[i].real:+8.4f}{w_flex[i].imag:+8.4f}j  '
+          f'q={Pm_flex[Q, i]:.2f}  w={Pm_flex[WZ, i]:.2f}  '
+          f'struct={1 - Pm_flex[:12, i].sum():.2f}')
+print('Flexible AC: roll-rate (p) spread, IPR_p = '
+      f'{inverse_participation_ratio(Pm_flex[P, :]):.2f}  '
+      f'(rigid AC IPR_p = '
+      f'{inverse_participation_ratio(participation_factors(Rigid_AC_Quasi_Aero["A_Fdyn"])[1][P, :]):.2f})')
+
+# Left/right symmetry of the flexible wing modes via FULL nodal-block cosine
+# correlation (not a single node's sign): right-wing velocity+displacement block
+# is [12:68), left-wing [96:152). corr ~ +1 symmetric, ~ -1 antisymmetric.
+# NB: eigenvalues and eigenvectors MUST come from the same decomposition --
+# np.linalg.eig and scipy.linalg.eig order their output differently.
+wv, Vf = np.linalg.eig(Flexible_AC_Un_Aero['A_Fdyn'])
+RW, LW = slice(12, 68), slice(96, 152)
+struct_frac = (np.abs(Vf[RW, :]).sum(0) + np.abs(Vf[LW, :]).sum(0)) / \
+              (np.abs(Vf).sum(0) + 1e-30)
+print('\nFlexible AC: L/R symmetry of near-origin wing modes (full-block corr):')
+for i in np.where((struct_frac > 0.3) & (wv.real > -6) &
+                  (wv.imag >= -1e-9) & (np.abs(wv.imag) < 6))[0]:
+    a, b = Vf[RW, i], Vf[LW, i]
+    corr = np.real(np.vdot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b) + 1e-30))
+    tag = 'SYM' if corr > 0.3 else ('ANTI' if corr < -0.3 else 'mixed')
+    print(f'   {wv[i].real:+8.4f}{wv[i].imag:+8.4f}j  corr={corr:+.3f}  {tag}')
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +221,7 @@ ax_zoom.set_title('(b) Flight-dynamics region (rigid-body modes)')
 # (the fast roll subsidence at Re ~ -49) are labelled on the full-spectrum panel
 # with the text parked in empty space, well clear of the near-origin cluster.
 offsets = {
-    'Short-period': (12, 8),
+    'Short-period': (35, 8),
     'Phugoid':      (8, 16),
     'Dutch roll':   (-16, 10),
     'Spiral':       (12, -18),
@@ -171,7 +231,7 @@ full_panel_text = {   # data-coordinate text positions on panel (a)
 }
 zx0, zx1 = ax_zoom.get_xlim()
 zy0, zy1 = ax_zoom.get_ylim()
-for name, lam in rb_modes.items():
+for name, (lam, _info) in rb_modes.items():
     y = abs(lam.imag)
     in_zoom = (zx0 <= lam.real <= zx1) and (zy0 <= y <= zy1)
     if in_zoom:
@@ -207,16 +267,25 @@ def _flex_wing_modes(A, xlim, ylim):
 real_bend, osc_bend = _flex_wing_modes(Flexible_AC_Un_Aero['A_Fdyn'],
                                        ax_zoom.get_xlim(), ax_zoom.get_ylim())
 
-# Arrow: the rigid short-period has no rigid-body counterpart in the flexible
-# aircraft (max rigid pitch participation ~0.01); its heave/pitch content is
-# absorbed into the symmetric wing-bending oscillation.
-if 'Short-period' in rb_modes and osc_bend is not None:
-    sp = rb_modes['Short-period']
-    ax_zoom.annotate('', xy=(osc_bend.real, abs(osc_bend.imag)),
-                     xytext=(sp.real, abs(sp.imag)),
-                     arrowprops=dict(arrowstyle='-|>', color='0.45', lw=1.4,
-                                     connectionstyle='arc3,rad=0.25'))
-    ax_zoom.text(-5.0, 3.9, 'rigid short-period\nabsorbed (no rigid\ncounterpart)',
+# Arrows: the rigid short-period SPLITS across the two symmetric wing-bending
+# modes in the flexible aircraft -- its heave content goes to the oscillatory
+# pair (w-participation 0.46 there) and its pitch content predominantly to the
+# overdamped real root (q-participation 0.46 there). Both arrows are drawn so the
+# figure shows a bifurcation, not a one-to-one merge.
+if 'Short-period' in rb_modes:
+    sp = rb_modes['Short-period'][0]
+    if osc_bend is not None:
+        ax_zoom.annotate('', xy=(osc_bend.real, abs(osc_bend.imag)),
+                         xytext=(sp.real, abs(sp.imag)),
+                         arrowprops=dict(arrowstyle='-|>', color='0.45', lw=1.4,
+                                         connectionstyle='arc3,rad=0.25'))
+    if real_bend is not None:
+        ax_zoom.annotate('', xy=(real_bend.real, 0.0),
+                         xytext=(sp.real, abs(sp.imag)),
+                         arrowprops=dict(arrowstyle='-|>', color='0.45', lw=1.4,
+                                         connectionstyle='arc3,rad=-0.25'))
+    ax_zoom.text(-3.8, 3.7, 'rigid short-period splits:\nheave -> osc. sym. bending,\n'
+                 'pitch -> overdamped sym.\nbending',
                  fontsize=7, color='0.35', ha='center', va='center', style='italic')
 
 # Blue labels for the flexible symmetric wing-bending modes.

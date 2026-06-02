@@ -124,8 +124,9 @@ Flexible FEM beam + unsteady aerodynamics. Code object: `Flexible_AC_Un_Aero`.
 
 The classical aircraft modes that live in the low-frequency, near-origin region of
 the eigenvalue spectrum — distinct from the high-frequency structural and aerodynamic-lag
-poles. They are **identified by eigenvector**: which body-axis velocity/rate states
-(`[u, v, w, p, q, r]`, *not* the position/angle integrators) dominate a given eigenvalue.
+poles. They are **identified by participation factor** (see below): which body-axis
+velocity/rate states (`[u, v, w, p, q, r]`, *not* the position/angle integrators)
+dominate a given eigenvalue.
 
 - **Short-period**: well-damped oscillation; dominant `w` and `q` (longitudinal).
 - **Phugoid**: low-frequency longitudinal mode in `u` (and pitch). May appear as a
@@ -137,3 +138,30 @@ poles. They are **identified by eigenvector**: which body-axis velocity/rate sta
 
 The near-zero eigenvalues are the kinematic integrators (positions `Px,Py,Pz`, heading
 `psi`), not dynamic modes.
+
+**Participation factor**:
+The scale-invariant measure of how strongly state `k` participates in mode `i`:
+`p_ki = (left eigenvector)_ki · (right eigenvector)_ki`, with the biorthogonal
+normalisation `Σ_k p_ki = 1` per mode (and `Σ_i p_ki = 1` per state). The canonical
+quantity for "which state dominates this mode", because it is invariant under any
+diagonal state rescaling — unlike raw eigenvector magnitude, which mixes incommensurate
+units (m, m/s, rad/s, rad).
+_Avoid_: "mode-shape magnitude", "right-eigenvector magnitude" — that normalised
+right-eigenvector quantity is unit-dependent and is the deprecated identification metric.
+
+**Inverse participation ratio (IPR)**:
+For a signature state `s`, `IPR(s) = 1 / Σ_i p̂_{s,i}²` over the normalised participations
+across all modes — an "effective number of modes" state `s` lives in. `≈1` = the state's
+motion is concentrated on a single eigenvalue; large = the signature is **smeared** across
+many poles (e.g. roll-rate `p` in the flexible aircraft). Quantifies "a mode dissolves /
+collapses" as a number rather than an assertion.
+
+**Isolated rigid-body block**:
+The bare 12-state flight-dynamics system (`Get_EQM_Rigid_Dof` + tail aero Jacobian, **no
+wing aerodynamic feedback**). Its five modes are textbook-unambiguous, so it serves as the
+independent baseline against which the coupled-aircraft mode labels are verified. Because it
+omits wing aero, modes whose damping is wing-dominated (roll subsidence `L_p`, short-period
+heave `Z_w`) deliberately differ from the coupled system — that gap *measures* the wing's
+contribution.
+_Avoid_: confusing this with the coupled "Rigid aircraft" config (which has rigid-beam
+wings *with* their aero).

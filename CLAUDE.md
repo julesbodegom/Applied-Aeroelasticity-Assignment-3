@@ -131,22 +131,32 @@ aero, and discuss.
   `R_M_rw` with `R_M_lw[0,1] = +1` (vs `-1`) to flip the bending-to-roll sign.
 
 `main_Aircraft_Flight_Dynamics.py` now builds both configs, identifies the five rigid-body
-modes by **eigenvector participation** (`p_ij = |v_ij| / Σ_k|v_kj|`, summed over the body
-velocity/rate states `[u,v,w,p,q,r]`; near-zero eigenvalues are the position/heading
-integrators), and saves an annotated two-panel complex-plane figure (full spectrum +
-flight-dynamics zoom) to `report/figures/partB_aircraft_eigenvalues.pdf`. Mode classification:
-short-period ↔ `w,q`; phugoid ↔ `u`; Dutch roll ↔ `v,r`; roll ↔ fast real `p`; spiral ↔
-slow real bank/heading. Flexible wing-bending modes are picked out by their nodal-DOF
-participation and left↔right symmetry.
+modes by **scale-invariant modal participation factors** (`p_ki = |ℓ_ki·r_ki| / Σ_j|ℓ_ji·r_ji|`
+via `scipy.linalg.eig(left=True)`, summed over the body velocity/rate states `[u,v,w,p,q,r]`),
+and saves an annotated two-panel complex-plane figure to
+`report/figures/partB_aircraft_eigenvalues.pdf`. The classifier is **threshold-free**:
+integrators are excluded by signature, each classical mode is the max-participation
+eigenvalue in its signature (short-period ↔ `w,q`; phugoid ↔ real `u`; Dutch roll ↔ `v,r`;
+roll ↔ global-max `p`, *not* restricted to real; spiral ↔ real bank `phi`), with roll spread
+quantified by an inverse participation ratio and L/R wing symmetry by a full nodal-block
+correlation. **Do not revert to the old `|v_ij|/Σ|v_kj|` right-eigenvector metric** — it is
+unit-dependent and gave wrong answers (see below + `docs/adr/0001-…`). Verification is the
+isolated 12-state rigid-body baseline (`inv(M_rr)@A_rr`, tail aero only).
 
-Key results (V = 35 m/s): the **spiral is mildly unstable** (+0.018) in *both* aircraft, so
-flexibility doesn't change the stability verdict. Flexibility **dissolves the short-period**
-(its heave/pitch content is absorbed into the symmetric wing-bending modes near −1.86 and
-−2.45 ± 4.68j — no flexible mode keeps rigid pitch content) and **collapses roll-subsidence
-damping** (−49 → ≈ −8, smeared across several aeroelastic poles), while Dutch roll, the
-(overdamped) phugoid and the spiral are nearly unchanged. Written up in
-`report/partB_implementation.tex` (§ Eigenvalue analysis); the LaTeX report root is
-`report/main.tex`.
+Key results (V = 35 m/s), corrected after the participation-factor rework: the **spiral is
+mildly unstable** (+0.018) in *both* aircraft (flexibility doesn't change the stability
+verdict). The **short-period does NOT dissolve** — its heave/pitch content is *retained* and
+merges into the symmetric wing-bending modes (`q`-participation 0.46 at the real −1.86 root,
+0.21 at the −2.45 ± 4.68j pair; both L/R-symmetric, corr +1.0). The earlier "no pitch content
+(0.01)" claim was a **unit artifact** of the old metric. **Roll subsidence** does not simply
+move to −8.3; its roll-rate participation *smears* (IPR 1.0 → 3.6), the largest share landing
+on an *oscillatory* ~12 rad/s pole — there is no single flexible roll pole. The three-leg
+baseline shows the wing supplies ~all roll damping (tail-only −0.07 → rigid −49.3) and the
+short-period damping (tail-only ζ=0.22 → rigid ζ=0.83), while Dutch roll and phugoid are
+body-dominated and unchanged across all three legs. Several near-origin coupled eigenvectors
+are mildly ill-conditioned (`|ℓᴴr|~1e-4`): eigenvalues are robust, participation values are
+cross-checked against the baseline + symmetry correlation. Written up in
+`report/partB_implementation.tex` (§ Eigenvalue analysis); LaTeX root `report/main.tex`.
 
 **Part C — Time-domain simulation (coding required).** `initialization.py` is "fully coded
 for you" per the brief (it builds the sorted input matrices `Rigid_B_Fdyn_sorted` /
