@@ -1,0 +1,143 @@
+\documentclass{article}
+\usepackage[english]{babel}
+\usepackage[utf8x]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{graphicx}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage[colorlinks=true, allcolors=black]{hyperref} %sets hyperlink colour
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{roboto} % for Roboto Slab font
+\usepackage{float}
+\usepackage{titling} 
+\usepackage{blindtext}\usepackage{titlesec}
+\usepackage[square,sort,comma,numbers]{natbib}
+\usepackage[colorinlistoftodos]{todonotes}
+\usepackage{tikz}
+\usepackage{geometry}
+\usepackage{sectsty}
+\usepackage{amsmath}
+\usepackage{tikzpagenodes}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{subfigure}
+\usepackage{subcaption}
+\usepackage{multicol}
+\usepackage{wrapfig}
+\usepackage{enumitem}  % Per la gestione avanzata degli elenchi
+\usepackage{ragged2e} 
+\usepackage{changepage}
+\usepackage{siunitx}
+\usepackage{matlab-prettifier}
+
+\captionsetup[subfigure]{labelformat=simple}
+\renewcommand\thesubfigure{(\alph{subfigure})}
+
+\definecolor{darkgreen}{rgb}{0.0, 0.4, 0.0}
+\definecolor{codegreen}{rgb}{0,0.5,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.67}
+\definecolor{backcolour}{rgb}{0.92,0.94,0.96}
+\definecolor{keywordcolor}{rgb}{0.8, 0.2, 0.4}
+\definecolor{titleblue}{rgb}{0.2, 0.4, 0.6}
+
+\allsectionsfont{\color{titleblue}}
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{keywordcolor},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+\definecolor{tudelftdarkblue}{RGB}{12,35,64}
+\definecolor{tudelftcyan}{RGB}{0,166,214}
+\definecolor{tudelftblue}{RGB}{0, 118, 194}
+\geometry{a4paper, margin=2cm}
+\allsectionsfont{\color{black}} %sets colour for all headers
+\usepackage{helvet}
+\renewcommand{\familydefault}{\sfdefault}
+\sectionfont{\fontfamily{RobotoSlab-TLF}\selectfont}
+\setlength\parindent{0pt} %set no indent
+\usepackage{setspace}
+
+
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  backgroundcolor=\color{gray!5},
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{green!40!black},
+  breaklines=true,
+  captionpos=b
+}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+\begin{document}
+%\onehalfspacing 
+% \input{titlepage}
+
+%%% Create a table of contents
+% \tableofcontents
+\thispagestyle{empty}   
+\newpage
+\setcounter{page}{1}
+%%%Insert all the chapters
+
+\input{partB_implementation}
+
+
+
+
+
+% \newpage
+% \addcontentsline{toc}{section}{References}
+% \bibliographystyle{apalike}
+% \bibliography{ref}
+% \thispagestyle{empty} 
+
+\end{document}
+
+
+
+
+
+
+%All other official TU Delft colours
+\definecolor{donkerblauw}{RGB}{12, 35, 64}
+\definecolor{turkoois}{RGB}{0, 184, 200}
+\definecolor{blauw}{RGB}{0, 118, 194}
+\definecolor{paars}{RGB}{111, 29, 119}
+\definecolor{roze}{RGB}{239, 96, 163}
+\definecolor{framboos}{RGB}{165, 0, 52}
+\definecolor{rood}{RGB}{224, 60, 49}
+\definecolor{oranje}{RGB}{237, 104, 66}
+\definecolor{geel}{RGB}{255, 184, 28}
+\definecolor{lichtgroen}{RGB}{108, 194, 74}
+\definecolor{donkergroen}{RGB}{0, 155, 119}
+%You can use these to change the hyperlink colour or the colour of the header or whatever. Glück Auf!

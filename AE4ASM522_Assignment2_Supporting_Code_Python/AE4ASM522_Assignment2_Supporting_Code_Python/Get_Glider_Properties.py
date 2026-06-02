@@ -108,12 +108,14 @@ def Get_Glider_Properties():
     par['stiff'] = stiff
     
     # Aerodynamic coefficients
+    # .mat scalars load as (1,1) arrays; squeeze to floats so they can be
+    # assigned into scalar matrix slots (NumPy >=2.0 is strict about this).
     aero_data = scipy.io.loadmat('aero_coeff.mat')
-    par['Clalpha_W'] = aero_data['Clalpha_W']
-    par['Clalpha_HT'] = aero_data['Clalpha_HT']
-    par['Clbeta_VT'] = aero_data['Clbeta_VT']
-    par['Cl_delta_e'] = aero_data['Cl_delta_e']
-    par['Cl_delta_r'] = aero_data['Cl_delta_r']
+    par['Clalpha_W'] = float(np.squeeze(aero_data['Clalpha_W']))
+    par['Clalpha_HT'] = float(np.squeeze(aero_data['Clalpha_HT']))
+    par['Clbeta_VT'] = float(np.squeeze(aero_data['Clbeta_VT']))
+    par['Cl_delta_e'] = float(np.squeeze(aero_data['Cl_delta_e']))
+    par['Cl_delta_r'] = float(np.squeeze(aero_data['Cl_delta_r']))
     
     # Drag coefficients
     par['kD'] = 0.04  # induced drag coefficient
@@ -121,10 +123,10 @@ def Get_Glider_Properties():
     
     # Trim values
     trim_data = scipy.io.loadmat('trim_V35.mat')
-    par['alpha_trim'] = trim_data['alpha_trim']  # trim angle of the wing
-    par['delta_e_trim'] = trim_data['delta_e_trim']
-    par['T_trim'] =  trim_data['T_trim']
+    par['alpha_trim'] = float(np.squeeze(trim_data['alpha_trim']))  # trim angle of the wing
+    par['delta_e_trim'] = float(np.squeeze(trim_data['delta_e_trim']))
+    par['T_trim'] =  float(np.squeeze(trim_data['T_trim']))
     AOA_install = 0  # install angle for the horizontal tail
-    par['ht_alpha_trim'] = trim_data['alpha_trim'] + AOA_install  # trim angle of the wing
+    par['ht_alpha_trim'] = par['alpha_trim'] + AOA_install  # trim angle of the wing
     
     return par
