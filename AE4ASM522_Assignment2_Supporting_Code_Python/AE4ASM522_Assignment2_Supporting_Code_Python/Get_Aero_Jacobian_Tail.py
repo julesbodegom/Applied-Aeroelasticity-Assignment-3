@@ -6,9 +6,16 @@ def Get_Aero_Jacobian_Tail(par, flow):
     Vel = flow['Vel']
     
     # Aerodynamic derivatives contributed from the tail
+    # PDF guideline eq. (13): dFx/du|* = -rho*V*S_ht*(C_D0 + kD*Cla^2*a*^2)
+    #                                    - rho*V*S_vt*C_D0
+    #                                    + rho*S_ht*kD*Cla^2 * a* * w*
+    # The 3rd (chain-rule) term carries w* = V*sin(a*) ~= V*a*, so a* * w* = V*a*^2.
+    # The supplied template had this as ".../ Vel" (a factor V^2 too small and
+    # dimensionally inconsistent); corrected to "* Vel" so the induced-drag pieces
+    # cancel at trim, leaving X_u = -rho*V*(S_ht+S_vt)*C_D0. See report Part B.
     X_u_T = -rho * Vel * par['S_Htail'] * (par['C_D0'] + par['kD'] * par['Clalpha_HT']**2 * par['ht_alpha_trim']**2) \
         - rho * Vel * par['S_Vtail'] * par['C_D0'] \
-        + rho * par['S_Htail'] * par['kD'] * par['Clalpha_HT']**2 * par['ht_alpha_trim']**2 / Vel
+        + rho * Vel * par['S_Htail'] * par['kD'] * par['Clalpha_HT']**2 * par['ht_alpha_trim']**2
 
     X_w_T = -rho * Vel * par['S_Htail'] * par['kD'] * par['Clalpha_HT']**2 * par['ht_alpha_trim']
     X_v_T = 0
