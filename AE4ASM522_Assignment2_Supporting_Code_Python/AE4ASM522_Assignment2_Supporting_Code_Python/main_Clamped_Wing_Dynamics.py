@@ -1,106 +1,199 @@
+import os
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy
 
 from Get_Beam_Strip_Aerodynamics import Get_Beam_Strip_Aerodynamics
 from Get_State_Space_Elastic_Wing import Get_State_Space_Elastic_Wing
 from Get_FEM_Beam_Structure import Get_FEM_Beam_Structure
 from Get_State_Space_Rigid_Wing import Get_State_Space_Rigid_Wing
 
+
+# -------------------------------------------------------------------------
 # Constants
+# -------------------------------------------------------------------------
 r2d = 180 / np.pi
 d2r = np.pi / 180
 
-# Define N as a dictionary
+
+# -------------------------------------------------------------------------
+# Define N
+# -------------------------------------------------------------------------
 N = {}
-N["Nn"] = 8  # number of nodes
-N["Ne"] = N["Nn"] - 1  # number of elements 
-N["Nv"] = 4 * N["Nn"]  # number of \dot q 
-N["Nd"] = 4 * N["Nn"]  # number of q (w,phi,theta,beta)
-N["Nz"] = 4 * N["Nn"]  # number for lag states (two for Dof, two for gusts)
+N["Nn"] = 8                     # number of nodes
+N["Ne"] = N["Nn"] - 1           # number of elements
+N["Nv"] = 4 * N["Nn"]           # number of q_dot
+N["Nd"] = 4 * N["Nn"]           # number of q = (w, phi, theta, beta)
+N["Nz"] = 4 * N["Nn"]           # number of lag states
 N["Ndof"] = N["Nv"] + N["Nd"] + N["Nz"]
 
-N["fxdof"] = [1, 2, 3, 4] + list(np.arange(N["Nv"]+1, N["Nv"]+5)) + list(np.arange(N["Nv"]+N["Nd"]+1, N["Nv"]+N["Nd"]+5))
-N["frdof"] = list(set(np.arange(1, N["Ndof"]+1)) - set(N["fxdof"]))
+N["fxdof"] = (
+    [1, 2, 3, 4]
+    + list(np.arange(N["Nv"] + 1, N["Nv"] + 5))
+    + list(np.arange(N["Nv"] + N["Nd"] + 1, N["Nv"] + N["Nd"] + 5))
+)
 
-# Define geo as a dictionary
+N["frdof"] = list(set(np.arange(1, N["Ndof"] + 1)) - set(N["fxdof"]))
+
+
+# -------------------------------------------------------------------------
+# Geometry
+# -------------------------------------------------------------------------
 geo = {}
-geo["b"] = 0.6 * np.ones(N["Nn"]) / 2  # half chord
-geo["a"] = np.zeros(N["Nn"])  # Location of the shear centre wrt midchord
-geo["c"] = 0.5 * np.ones(N["Nn"])  # Location of the flap hinge wrt midchord
-geo["xcg"] = 0.1 * geo["b"]  # Location of the cg wrt shear centre
-geo["Ltot"] = 8  # half span
-geo["L"] = geo["Ltot"] / N["Ne"] * np.ones(N["Nn"])  # length per element
+geo["b"] = 0.6 * np.ones(N["Nn"]) / 2      # half chord
+geo["a"] = np.zeros(N["Nn"])               # shear centre wrt midchord
+geo["c"] = 0.5 * np.ones(N["Nn"])          # flap hinge wrt midchord
+geo["xcg"] = 0.1 * geo["b"]                # cg wrt shear centre
+geo["Ltot"] = 8                            # half span
+geo["L"] = geo["Ltot"] / N["Ne"] * np.ones(N["Nn"])
 geo["Lf"] = (1 - geo["c"]) * geo["b"]
 
-# Define mass as a dictionary
+
+# -------------------------------------------------------------------------
+# Mass properties
+# -------------------------------------------------------------------------
 mass = {}
-mass["m"] = 0.75 * np.ones(N["Nn"])  # Wing mass per unit length
+mass["m"] = 0.75 * np.ones(N["Nn"])
 mass["It"] = 0.1 * np.ones(N["Nn"])
-mass["mf"] = 0.25 * np.ones(N["Nn"])  # Flap mass per flap
-mass["If_cgf"] = 1e-3 * np.ones(N["Nn"])  # Inertia of the flap around its own cg, per flap  
-mass["xf"] = -0.1 * np.ones(N["Nn"])  # Location of the flap cg with respect to the hinge line
+mass["mf"] = 0.25 * np.ones(N["Nn"])
+mass["If_cgf"] = 1e-3 * np.ones(N["Nn"])
+mass["xf"] = -0.1 * np.ones(N["Nn"])
 mass["Sf"] = mass["mf"] * mass["xf"] * geo["Lf"]
 mass["If"] = mass["If_cgf"] + mass["Sf"] * mass["xf"] * geo["Lf"]
 
-# Define stiff as a dictionary
+
+# -------------------------------------------------------------------------
+# Stiffness properties
+# -------------------------------------------------------------------------
 stiff = {}
 stiff["E"] = 70e9
 stiff["G"] = stiff["E"] / 2 / (1 + 0.3)
-stiff["Ixx"] = 1.2e5 / stiff["E"] * np.ones(N["Nn"])  
-stiff["J"] = 1e7 / stiff["G"] * np.ones(N["Nn"])  
-stiff["Kf"] = 1e2 * np.ones(N["Nn"])    
-stiff["psic"] = np.zeros(N["Nn"])  # Bending torsion coupling term
-stiff["Kc"] = np.sign(stiff["psic"]) * (stiff["psic"]**2 * 16. * stiff["E"] * stiff["Ixx"] * stiff["G"] * stiff["J"] / geo["L"]**2)**0.5
+stiff["Ixx"] = 1.2e5 / stiff["E"] * np.ones(N["Nn"])
+stiff["J"] = 1e7 / stiff["G"] * np.ones(N["Nn"])
+stiff["Kf"] = 1e2 * np.ones(N["Nn"])
+stiff["psic"] = np.zeros(N["Nn"])
+stiff["Kc"] = np.sign(stiff["psic"]) * (
+    stiff["psic"]**2
+    * 16.0
+    * stiff["E"]
+    * stiff["Ixx"]
+    * stiff["G"]
+    * stiff["J"]
+    / geo["L"]**2
+) ** 0.5
 
+
+# -------------------------------------------------------------------------
 # Flow parameters
-flow = {"rho": 1.225, "Vel": 35}
+# -------------------------------------------------------------------------
+flow = {}
+flow["rho"] = 1.225
+flow["Vel"] = 35
 
-# Get clamped beam mass, damping, stiffness matrices
+
+# -------------------------------------------------------------------------
+# Get structural and aerodynamic matrices
+# -------------------------------------------------------------------------
 Stru = Get_FEM_Beam_Structure(geo, stiff, mass, N)
-
-# Get aerodynamic matrices 
 Aero = Get_Beam_Strip_Aerodynamics(geo, flow, N)
 
-# Flexible Beam Assemble to state-space 
-# aero_option = 0;   # unsteady aerodynamics
-# aero_option = 1; # quasi-steady aerodynamics
 
-# Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option);
-
-# Rigid Beam Assemble to state-space 
-# aero_option = 0;   # unsteady aerodynamics
-# aero_option = 1; # quasi-steady aerodynamics
-
-# Rigid_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option);
-
+# =========================================================================
 # Flexible clamped wing beam eigenvalue analysis
+# =========================================================================
 plt.figure(1)
-aero_option = 0
-Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
-eig_un = np.linalg.eig(Ae_Sym_SS["A_ae"])[0]
-plt.plot(eig_un.real, eig_un.imag, 'b*')
-aero_option = 1
-Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
-eig_quasi = np.linalg.eig(Ae_Sym_SS["A_ae"])[0]
-plt.plot(eig_quasi.real, eig_quasi.imag, 'ro')
-plt.grid(True) 
-plt.legend(['unsteady aerodynamics', 'quasi-steady aerodynamics'])
-plt.title('eigenvalues of a flexible clamped wing beam')
-# plt.savefig('./figure/wangxuerui.png')
 
-# Rigid clamped wing beam eigenvalue analysis
-plt.figure(2) 
+# Unsteady aerodynamics
 aero_option = 0
-Ae_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
-eig_un = np.linalg.eig(Ae_Sym_SS["A_rigid"])[0]
-plt.plot(eig_un.real, eig_un.imag, 'b*')
+Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
+eig_flex_us = np.linalg.eigvals(Ae_Sym_SS["A_ae"])
+plt.plot(eig_flex_us.real, eig_flex_us.imag, "b*", label="unsteady aerodynamics")
+
+# Quasi-steady aerodynamics
 aero_option = 1
-Ae_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
-eig_quasi = np.linalg.eig(Ae_Sym_SS["A_rigid"])[0]
-plt.plot(eig_quasi.real, eig_quasi.imag, 'ro')
+Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
+eig_flex_qs = np.linalg.eigvals(Ae_Sym_SS["A_ae"])
+plt.plot(eig_flex_qs.real, eig_flex_qs.imag, "ro", label="quasi-steady aerodynamics")
+
+plt.axvline(x=0, color="k", linestyle="--", linewidth=0.8)
 plt.grid(True)
-plt.legend(['unsteady aerodynamics', 'quasi-steady aerodynamics'])
-plt.title('eigenvalues of a rigid clamped wing beam')
+plt.legend()
+plt.xlabel("Real part [1/s]")
+plt.ylabel("Imaginary part [rad/s]")
+plt.title("Eigenvalues of a flexible clamped wing beam")
+
+
+# =========================================================================
+# Rigid clamped wing beam eigenvalue analysis
+# =========================================================================
+plt.figure(2)
+
+# Unsteady aerodynamics
+aero_option = 0
+Rigid_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
+eig_rigid_us = np.linalg.eigvals(Rigid_Sym_SS["A_rigid"])
+plt.plot(eig_rigid_us.real, eig_rigid_us.imag, "b*", label="unsteady aerodynamics")
+
+# Quasi-steady aerodynamics
+aero_option = 1
+Rigid_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
+eig_rigid_qs = np.linalg.eigvals(Rigid_Sym_SS["A_rigid"])
+plt.plot(eig_rigid_qs.real, eig_rigid_qs.imag, "ro", label="quasi-steady aerodynamics")
+
+plt.axvline(x=0, color="k", linestyle="--", linewidth=0.8)
+plt.grid(True)
+plt.legend()
+plt.xlabel("Real part [1/s]")
+plt.ylabel("Imaginary part [rad/s]")
+plt.title("Eigenvalues of a rigid clamped wing beam")
+
+
+# =========================================================================
+# Zoom near origin for both cases
+# =========================================================================
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Rigid wing - zoom
+axes[0].plot(eig_rigid_qs.real, eig_rigid_qs.imag, "ro", label="quasi-steady")
+axes[0].plot(eig_rigid_us.real, eig_rigid_us.imag, "b*", label="unsteady")
+axes[0].axvline(x=0, color="k", linestyle="--", linewidth=0.8)
+axes[0].set_xlim([-20, 5])
+axes[0].set_ylim([-50, 50])
+axes[0].set_xlabel("Real part [1/s]")
+axes[0].set_ylabel("Imaginary part [rad/s]")
+axes[0].set_title("Rigid - zoom near origin")
+axes[0].legend()
+axes[0].grid(True)
+
+# Flexible wing - zoom
+axes[1].plot(eig_flex_qs.real, eig_flex_qs.imag, "ro", label="quasi-steady")
+axes[1].plot(eig_flex_us.real, eig_flex_us.imag, "b*", label="unsteady")
+axes[1].axvline(x=0, color="k", linestyle="--", linewidth=0.8)
+axes[1].set_xlim([-20, 5])
+axes[1].set_ylim([-50, 50])
+axes[1].set_xlabel("Real part [1/s]")
+axes[1].set_ylabel("Imaginary part [rad/s]")
+axes[1].set_title("Flexible - zoom near origin")
+axes[1].legend()
+axes[1].grid(True)
+
+plt.tight_layout()
+
+
+# -------------------------------------------------------------------------
+# Print basic stability information
+# -------------------------------------------------------------------------
+print("\n===== Stability check =====")
+print("Rigid QS max real part:     ", np.max(eig_rigid_qs.real))
+print("Rigid US max real part:     ", np.max(eig_rigid_us.real))
+print("Flexible QS max real part:  ", np.max(eig_flex_qs.real))
+print("Flexible US max real part:  ", np.max(eig_flex_us.real))
+
+print("\nNumber of eigenvalues:")
+print("Rigid QS:    ", len(eig_rigid_qs))
+print("Rigid US:    ", len(eig_rigid_us))
+print("Flexible QS: ", len(eig_flex_qs))
+print("Flexible US: ", len(eig_flex_us))
 
 plt.show()
