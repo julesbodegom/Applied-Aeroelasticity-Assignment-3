@@ -100,7 +100,7 @@ Aero = Get_Beam_Strip_Aerodynamics(geo, flow, N)
 
 
 # =========================================================================
-# Flexible clamped wing beam eigenvalue analysis
+# Flexible clamped wing beam eigenvalue analysis - full spectrum
 # =========================================================================
 plt.figure(1)
 
@@ -108,15 +108,26 @@ plt.figure(1)
 aero_option = 0
 Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
 eig_flex_us = np.linalg.eigvals(Ae_Sym_SS["A_ae"])
-plt.plot(eig_flex_us.real, eig_flex_us.imag, "b*", label="unsteady aerodynamics")
+plt.plot(
+    eig_flex_us.real,
+    eig_flex_us.imag,
+    "b*",
+    label="unsteady aerodynamics"
+)
 
 # Quasi-steady aerodynamics
 aero_option = 1
 Ae_Sym_SS = Get_State_Space_Elastic_Wing(Stru, Aero, N, geo, aero_option)
 eig_flex_qs = np.linalg.eigvals(Ae_Sym_SS["A_ae"])
-plt.plot(eig_flex_qs.real, eig_flex_qs.imag, "ro", label="quasi-steady aerodynamics")
+plt.plot(
+    eig_flex_qs.real,
+    eig_flex_qs.imag,
+    "ro",
+    label="quasi-steady aerodynamics"
+)
 
 plt.axvline(x=0, color="k", linestyle="--", linewidth=0.8)
+plt.axhline(y=0, color="k", linestyle="-", linewidth=0.5, alpha=0.4)
 plt.grid(True)
 plt.legend()
 plt.xlabel("Real part [1/s]")
@@ -125,7 +136,7 @@ plt.title("Eigenvalues of a flexible clamped wing beam")
 
 
 # =========================================================================
-# Rigid clamped wing beam eigenvalue analysis
+# Rigid clamped wing beam eigenvalue analysis - full spectrum
 # =========================================================================
 plt.figure(2)
 
@@ -133,15 +144,26 @@ plt.figure(2)
 aero_option = 0
 Rigid_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
 eig_rigid_us = np.linalg.eigvals(Rigid_Sym_SS["A_rigid"])
-plt.plot(eig_rigid_us.real, eig_rigid_us.imag, "b*", label="unsteady aerodynamics")
+plt.plot(
+    eig_rigid_us.real,
+    eig_rigid_us.imag,
+    "b*",
+    label="unsteady aerodynamics"
+)
 
 # Quasi-steady aerodynamics
 aero_option = 1
 Rigid_Sym_SS = Get_State_Space_Rigid_Wing(Stru, Aero, N, geo, aero_option)
 eig_rigid_qs = np.linalg.eigvals(Rigid_Sym_SS["A_rigid"])
-plt.plot(eig_rigid_qs.real, eig_rigid_qs.imag, "ro", label="quasi-steady aerodynamics")
+plt.plot(
+    eig_rigid_qs.real,
+    eig_rigid_qs.imag,
+    "ro",
+    label="quasi-steady aerodynamics"
+)
 
 plt.axvline(x=0, color="k", linestyle="--", linewidth=0.8)
+plt.axhline(y=0, color="k", linestyle="-", linewidth=0.5, alpha=0.4)
 plt.grid(True)
 plt.legend()
 plt.xlabel("Real part [1/s]")
@@ -150,35 +172,111 @@ plt.title("Eigenvalues of a rigid clamped wing beam")
 
 
 # =========================================================================
-# Zoom near origin for both cases
+# Improved zoom near origin for both cases
 # =========================================================================
 fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
-# Rigid wing - zoom
-axes[0].plot(eig_rigid_qs.real, eig_rigid_qs.imag, "ro", label="quasi-steady")
-axes[0].plot(eig_rigid_us.real, eig_rigid_us.imag, "b*", label="unsteady")
+# -------------------------------------------------------------------------
+# Rigid wing - improved zoom
+# -------------------------------------------------------------------------
+axes[0].scatter(
+    eig_rigid_qs.real,
+    eig_rigid_qs.imag,
+    c="red",
+    marker="o",
+    s=18,
+    alpha=0.65,
+    label="quasi-steady"
+)
+
+axes[0].scatter(
+    eig_rigid_us.real,
+    eig_rigid_us.imag,
+    c="blue",
+    marker="*",
+    s=28,
+    alpha=0.65,
+    label="unsteady"
+)
+
 axes[0].axvline(x=0, color="k", linestyle="--", linewidth=0.8)
-axes[0].set_xlim([-20, 5])
-axes[0].set_ylim([-50, 50])
+axes[0].axhline(y=0, color="k", linestyle="-", linewidth=0.5, alpha=0.4)
+
+axes[0].set_xlim([-12, 1])
+axes[0].set_ylim([-500, 500])
+
 axes[0].set_xlabel("Real part [1/s]")
 axes[0].set_ylabel("Imaginary part [rad/s]")
 axes[0].set_title("Rigid - zoom near origin")
 axes[0].legend()
 axes[0].grid(True)
 
-# Flexible wing - zoom
-axes[1].plot(eig_flex_qs.real, eig_flex_qs.imag, "ro", label="quasi-steady")
-axes[1].plot(eig_flex_us.real, eig_flex_us.imag, "b*", label="unsteady")
+
+# -------------------------------------------------------------------------
+# Flexible wing - improved zoom
+# -------------------------------------------------------------------------
+axes[1].scatter(
+    eig_flex_qs.real,
+    eig_flex_qs.imag,
+    c="red",
+    marker="o",
+    s=18,
+    alpha=0.65,
+    label="quasi-steady"
+)
+
+axes[1].scatter(
+    eig_flex_us.real,
+    eig_flex_us.imag,
+    c="blue",
+    marker="*",
+    s=28,
+    alpha=0.65,
+    label="unsteady"
+)
+
 axes[1].axvline(x=0, color="k", linestyle="--", linewidth=0.8)
-axes[1].set_xlim([-20, 5])
-axes[1].set_ylim([-50, 50])
+axes[1].axhline(y=0, color="k", linestyle="-", linewidth=0.5, alpha=0.4)
+
+axes[1].set_xlim([-12, 1])
+axes[1].set_ylim([-3000, 3000])
+
 axes[1].set_xlabel("Real part [1/s]")
 axes[1].set_ylabel("Imaginary part [rad/s]")
 axes[1].set_title("Flexible - zoom near origin")
 axes[1].legend()
 axes[1].grid(True)
 
+
+# -------------------------------------------------------------------------
+# Annotate rightmost flexible poles
+# -------------------------------------------------------------------------
+idx_flex_qs = np.argmax(eig_flex_qs.real)
+idx_flex_us = np.argmax(eig_flex_us.real)
+
+lam_flex_qs = eig_flex_qs[idx_flex_qs]
+lam_flex_us = eig_flex_us[idx_flex_us]
+
+axes[1].annotate(
+    f"QS rightmost pole\nRe = {lam_flex_qs.real:.2f}",
+    xy=(lam_flex_qs.real, lam_flex_qs.imag),
+    xytext=(-4.0, 1.2),
+    arrowprops=dict(arrowstyle="->", linewidth=0.8),
+    fontsize=9
+)
+
+axes[1].annotate(
+    f"US rightmost pole\nRe = {lam_flex_us.real:.2f}",
+    xy=(lam_flex_us.real, lam_flex_us.imag),
+    xytext=(-8.8, -1.3),
+    arrowprops=dict(arrowstyle="->", linewidth=0.8),
+    fontsize=9
+)
+
 plt.tight_layout()
+
+# Save the improved zoom figure
+plt.savefig("zoom_near_origin_improved.png", dpi=300, bbox_inches="tight")
 
 
 # -------------------------------------------------------------------------
@@ -195,5 +293,9 @@ print("Rigid QS:    ", len(eig_rigid_qs))
 print("Rigid US:    ", len(eig_rigid_us))
 print("Flexible QS: ", len(eig_flex_qs))
 print("Flexible US: ", len(eig_flex_us))
+
+print("\nRightmost flexible poles:")
+print("Flexible QS rightmost pole:", lam_flex_qs)
+print("Flexible US rightmost pole:", lam_flex_us)
 
 plt.show()
